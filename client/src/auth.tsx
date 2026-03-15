@@ -91,49 +91,85 @@ export function LoginScreen() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-base-200">
-      <div className="card w-96 bg-base-100 shadow-xl">
-        <div className="card-body">
-          <h2 className="card-title text-center justify-center text-2xl mb-2">🧪 PLL CRM</h2>
-          <p className="text-center text-sm opacity-70 mb-4">Private Label Labs Manufacturing</p>
+    <div className="min-h-screen flex items-center justify-center" style={{ background: '#f5f5f7' }}>
+      <div className="animate-in w-full max-w-sm mx-4">
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center mx-auto mb-4" style={{ boxShadow: '0 8px 24px rgba(0, 122, 255, 0.3)' }}>
+            <span className="text-white text-2xl font-bold">P</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900" style={{ letterSpacing: '-0.03em' }}>PLL CRM</h1>
+          <p className="text-sm text-gray-400 mt-1">Private Label Labs Manufacturing</p>
+        </div>
 
+        {/* Card */}
+        <div className="glass-card p-8" style={{ background: 'rgba(255,255,255,0.9)' }}>
           <form onSubmit={handleSubmit}>
-            <div className="space-y-3">
+            <div className="space-y-4">
               <div>
-                <label className="label"><span className="label-text">Username</span></label>
-                <input className="input input-bordered w-full" value={username} onChange={(e) => setUsername(e.target.value)} placeholder="Username" required />
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 ml-1">Username</label>
+                <input
+                  className="input input-bordered w-full h-11"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
+                  placeholder="Enter username"
+                  required
+                />
               </div>
 
               {isRegister && (
                 <div>
-                  <label className="label"><span className="label-text">Display Name</span></label>
-                  <input className="input input-bordered w-full" value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Your name" />
+                  <label className="block text-xs font-medium text-gray-500 mb-1.5 ml-1">Display Name</label>
+                  <input
+                    className="input input-bordered w-full h-11"
+                    value={displayName}
+                    onChange={(e) => setDisplayName(e.target.value)}
+                    placeholder="Your name"
+                  />
                 </div>
               )}
 
               <div>
-                <label className="label"><span className="label-text">Password</span></label>
-                <input className="input input-bordered w-full" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Password" required />
+                <label className="block text-xs font-medium text-gray-500 mb-1.5 ml-1">Password</label>
+                <input
+                  className="input input-bordered w-full h-11"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Enter password"
+                  required
+                />
               </div>
 
-              {error && <div className="alert alert-error text-sm py-2"><span>{error}</span></div>}
+              {error && (
+                <div className="bg-red-50 text-red-600 text-sm py-2.5 px-4 rounded-xl">
+                  {error}
+                </div>
+              )}
 
-              <button className="btn btn-primary w-full" type="submit" disabled={loading}>
+              <button
+                className="btn btn-primary w-full h-11 text-white font-medium"
+                type="submit"
+                disabled={loading}
+              >
                 {loading ? <span className="loading loading-spinner loading-sm" /> : (isRegister ? 'Create Account' : 'Sign In')}
               </button>
             </div>
           </form>
 
-          <div className="text-center mt-2">
-            <button className="btn btn-ghost btn-sm" onClick={() => { setIsRegister(!isRegister); setError(''); }}>
+          <div className="text-center mt-4">
+            <button
+              className="text-sm text-blue-500 hover:text-blue-600 font-medium transition-colors"
+              onClick={() => { setIsRegister(!isRegister); setError(''); }}
+            >
               {isRegister ? 'Already have an account? Sign in' : 'Create an account'}
             </button>
           </div>
-
-          {!isRegister && (
-            <p className="text-center text-xs opacity-50 mt-2">Default: admin / admin123</p>
-          )}
         </div>
+
+        {!isRegister && (
+          <p className="text-center text-xs text-gray-300 mt-4">Default: admin / admin123</p>
+        )}
       </div>
     </div>
   );

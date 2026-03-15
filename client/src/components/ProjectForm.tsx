@@ -79,10 +79,31 @@ export const ProjectForm: React.FC<ProjectFormProps> = ({ project, preselectedCu
         await window.tasklet.sqlExec(
           `UPDATE sales_projects SET customer_id=${form.customer_id}, project_name=${escSql(form.project_name)}, product_type=${escSql(form.product_type)}, estimated_units=${units}, quoted_price_per_unit=${price}, estimated_revenue=${revenue}, scope_description=${escSql(form.scope_description)}, sales_stage=${escSql(form.sales_stage)}, assigned_to=${escSql(form.assigned_to)}, notes=${escSql(form.notes)}, updated_at=datetime('now') WHERE id=${project.id}`
         );
+
+        // Auto-create production plan when stage changed to Won
+        if (form.sales_stage === 'Won' && project.sales_stage !== 'Won') {
+          const existing = await window.tasklet.sqlQuery(`SELECT id FROM production_projects WHERE sales_project_id=${project.id}`);
+          if ((existing as any[]).length === 0) {
+            await window.tasklet.sqlExec(
+              `INSERT INTO production_projects (sales_project_id, customer_id, project_name, production_stage, total_value, notes) VALUES (${project.id}, ${form.customer_id}, '${form.project_name.replace(/'/g, "''")} - Production', 'Deposit Received', ${revenue || 0}, 'Auto-created from won deal')`
+            );
+          }
+        }
       } else {
         await window.tasklet.sqlExec(
           `INSERT INTO sales_projects (customer_id, project_name, product_type, estimated_units, quoted_price_per_unit, estimated_revenue, scope_description, sales_stage, assigned_to, notes) VALUES (${form.customer_id}, ${escSql(form.project_name)}, ${escSql(form.product_type)}, ${units}, ${price}, ${revenue}, ${escSql(form.scope_description)}, ${escSql(form.sales_stage)}, ${escSql(form.assigned_to)}, ${escSql(form.notes)})`
         );
+
+        // Auto-create production plan for new deals created as Won
+        if (form.sales_stage === 'Won') {
+          const newRows = await window.tasklet.sqlQuery(`SELECT id FROM sales_projects ORDER BY id DESC LIMIT 1`);
+          const newId = (newRows as any[])[0]?.id;
+          if (newId) {
+            await window.tasklet.sqlExec(
+              `INSERT INTO production_projects (sales_project_id, customer_id, project_name, production_stage, total_value, notes) VALUES (${newId}, ${form.customer_id}, '${form.project_name.replace(/'/g, "''")} - Production', 'Deposit Received', ${revenue || 0}, 'Auto-created from won deal')`
+            );
+          }
+        }
       }
       onSaved();
     } catch (err) {

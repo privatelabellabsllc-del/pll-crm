@@ -5,16 +5,17 @@ import { escSql, productionProgress } from '../utils/helpers';
 
 interface ProductionFormProps {
   project?: ProductionProject | null;
+  preselectedCustomerId?: number;
   onClose: () => void;
   onSaved: () => void;
 }
 
-export const ProductionForm: React.FC<ProductionFormProps> = ({ project, onClose, onSaved }) => {
+export const ProductionForm: React.FC<ProductionFormProps> = ({ project, preselectedCustomerId, onClose, onSaved }) => {
   const isEdit = !!project;
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [formulas, setFormulas] = useState<Formula[]>([]);
   const [form, setForm] = useState({
-    customer_id: 0,
+    customer_id: preselectedCustomerId || 0,
     project_name: '',
     production_stage: 'Deposit Received' as string,
     assigned_to: '',
@@ -97,6 +98,25 @@ export const ProductionForm: React.FC<ProductionFormProps> = ({ project, onClose
         await window.tasklet.sqlExec(
           `UPDATE production_projects SET customer_id=${form.customer_id}, project_name=${escSql(form.project_name)}, production_stage=${escSql(form.production_stage)}, assigned_to=${escSql(form.assigned_to)}, expected_completion=${escSql(form.expected_completion || null)}, progress_percent=${progress}, total_value=${totalVal}, deposit_paid=${depositVal}, balance_remaining=${balanceVal}, payment_status=${escSql(form.payment_status)}, profit_estimate=${profitVal}, formula_id=${formulaSql}, notes=${escSql(form.notes)}, updated_at=datetime('now') WHERE id=${project.id}`
         );
+
+        // Auto-deduct inventory when stage changes to Completed or Shipped
+        const completionStages = ['Completed', 'Shipped'];
+        if (completionStages.includes(form.production_stage) && !completionStages.includes(project.production_stage)) {
+          const fId = formulaId;
+          if (fId) {
+            const ingredients = await window.tasklet.sqlQuery(
+              `SELECT fi.inventory_id, fi.amount_grams FROM formula_ingredients fi WHERE fi.formula_id=${fId}`
+            );
+            for (const ing of ingredients as any[]) {
+              if (ing.inventory_id && ing.amount_grams) {
+                const amountKg = ing.amount_grams / 1000;
+                await window.tasklet.sqlExec(
+                  `UPDATE inventory SET current_stock_kg = MAX(0, current_stock_kg - ${amountKg}), updated_at=datetime('now') WHERE id=${ing.inventory_id}`
+                );
+              }
+            }
+          }
+        }
       } else {
         await window.tasklet.sqlExec(
           `INSERT INTO production_projects (customer_id, project_name, production_stage, assigned_to, expected_completion, progress_percent, total_value, deposit_paid, balance_remaining, payment_status, profit_estimate, formula_id, notes) VALUES (${form.customer_id}, ${escSql(form.project_name)}, ${escSql(form.production_stage)}, ${escSql(form.assigned_to)}, ${escSql(form.expected_completion || null)}, ${progress}, ${totalVal}, ${depositVal}, ${balanceVal}, ${escSql(form.payment_status)}, ${profitVal}, ${formulaSql}, ${escSql(form.notes)})`

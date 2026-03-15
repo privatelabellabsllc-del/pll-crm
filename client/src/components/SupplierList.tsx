@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Supplier } from '../types';
 import { Truck, Search, Plus, Eye, Edit2 } from 'lucide-react';
+import CsvImport from './CsvImport';
 
 interface SupplierListProps {
   onAddSupplier: () => void;
@@ -39,7 +40,9 @@ const SupplierList: React.FC<SupplierListProps> = ({ onAddSupplier, onEditSuppli
     const q = search.toLowerCase();
     return (
       (s.name && String(s.name).toLowerCase().includes(q)) ||
-      (s.contact_name && String(s.contact_name).toLowerCase().includes(q))
+      (s.contact_name && String(s.contact_name).toLowerCase().includes(q)) ||
+      (s.email && String(s.email).toLowerCase().includes(q)) ||
+      (s.phone && String(s.phone).toLowerCase().includes(q))
     );
   });
 
@@ -52,7 +55,7 @@ const SupplierList: React.FC<SupplierListProps> = ({ onAddSupplier, onEditSuppli
   }
 
   return (
-    <div className="space-y-4">
+    <div className="p-6 overflow-y-auto h-full space-y-4">
       {/* Header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div className="flex items-center gap-3">
@@ -60,10 +63,13 @@ const SupplierList: React.FC<SupplierListProps> = ({ onAddSupplier, onEditSuppli
           <h2 className="text-2xl font-bold">Suppliers</h2>
           <span className="badge badge-primary">{suppliers.length}</span>
         </div>
-        <button className="btn btn-primary btn-sm gap-2" onClick={onAddSupplier}>
-          <Plus className="w-4 h-4" />
-          Add Supplier
-        </button>
+        <div className="flex items-center gap-2">
+          <CsvImport type="suppliers" onImportComplete={loadSuppliers} />
+          <button className="btn btn-primary btn-sm gap-2" onClick={onAddSupplier}>
+            <Plus className="w-4 h-4" />
+            Add Supplier
+          </button>
+        </div>
       </div>
 
       {/* Search */}

@@ -49,10 +49,14 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onAddPO, onEditPO
   }, []);
 
   const filtered = purchaseOrders.filter((po) => {
+    const poNumber = `PO-${String(po.id).padStart(4, '0')}`;
     const matchesSearch =
       !searchTerm ||
       ((po as any).supplier_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
-      ((po as any).ingredient_name || '').toLowerCase().includes(searchTerm.toLowerCase());
+      ((po as any).ingredient_name || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      poNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      (po.status || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+      ((po as any).project_name || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesStatus = !statusFilter || po.status === statusFilter;
     return matchesSearch && matchesStatus;
   });
@@ -100,7 +104,7 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onAddPO, onEditPO
   }
 
   return (
-    <div className="space-y-6">
+    <div className="p-6 overflow-y-auto h-full space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -185,7 +189,7 @@ const PurchaseOrderList: React.FC<PurchaseOrderListProps> = ({ onAddPO, onEditPO
           </button>
         </div>
       ) : (
-        <div className="overflow-x-auto bg-base-100 rounded-xl shadow">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-420px)] bg-base-100 rounded-xl shadow">
           <table className="table table-zebra w-full">
             <thead>
               <tr>

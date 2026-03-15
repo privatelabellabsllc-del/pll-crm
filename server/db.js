@@ -216,6 +216,9 @@ async function initDb() {
     );
   `);
 
+  // Add photo_url column if not exists
+  try { db.run(`ALTER TABLE customers ADD COLUMN photo_url TEXT DEFAULT ''`); } catch(e) { /* column already exists */ }
+
   saveDb();
   return db;
 }
@@ -252,8 +255,24 @@ function runSql(sql, params = []) {
 }
 
 // Graceful save on shutdown
-process.on('SIGINT', () => { saveDb(); process.exit(0); });
-process.on('SIGTERM', () => { saveDb(); process.exit(0); });
+process.on('SIGINT', () => { 
+  saveDb(); 
+  try { 
+    const backup = require('./backup');
+    backup.saveSeedFile();
+    console.log('Seed file saved on shutdown.');
+  } catch(e) {}
+  process.exit(0); 
+});
+process.on('SIGTERM', () => { 
+  saveDb(); 
+  try { 
+    const backup = require('./backup');
+    backup.saveSeedFile();
+    console.log('Seed file saved on shutdown.');
+  } catch(e) {}
+  process.exit(0); 
+});
 process.on('exit', () => { saveDb(); });
 
 module.exports = { initDb, getDb, queryAll, runSql, saveDb };

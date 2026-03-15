@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { InventoryItem, ITEM_TYPES, INVENTORY_STATUSES } from '../types';
 import { Package, Search, AlertTriangle, Filter } from 'lucide-react';
+import CsvImport from './CsvImport';
 
 interface InventoryListProps {
   onAddItem: () => void;
@@ -33,7 +34,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ onAddItem, onEditItem }) 
   }, []);
 
   const filtered = items.filter((item) => {
-    const matchesSearch = !searchTerm || item.ingredient_name.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesSearch = !searchTerm || item.ingredient_name.toLowerCase().includes(searchTerm.toLowerCase()) || ((item as any).supplier_name || '').toLowerCase().includes(searchTerm.toLowerCase()) || (item.item_type || '').toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = !filterType || item.item_type === filterType;
     const matchesStatus = !filterStatus || item.status === filterStatus;
     return matchesSearch && matchesType && matchesStatus;
@@ -72,7 +73,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ onAddItem, onEditItem }) 
   }
 
   return (
-    <div className="space-y-4">
+    <div className="p-6 overflow-y-auto h-full space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
@@ -80,9 +81,12 @@ const InventoryList: React.FC<InventoryListProps> = ({ onAddItem, onEditItem }) 
           <h2 className="text-2xl font-bold">Inventory</h2>
           <span className="badge badge-ghost">{totalItems} items</span>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={onAddItem}>
-          + Add Item
-        </button>
+        <div className="flex items-center gap-2">
+          <CsvImport type="inventory" onImportComplete={loadItems} />
+          <button className="btn btn-primary btn-sm" onClick={onAddItem}>
+            + Add Item
+          </button>
+        </div>
       </div>
 
       {/* Stats Bar */}
@@ -156,7 +160,7 @@ const InventoryList: React.FC<InventoryListProps> = ({ onAddItem, onEditItem }) 
           </p>
         </div>
       ) : (
-        <div className="overflow-x-auto bg-base-100 rounded-lg border border-base-300">
+        <div className="overflow-x-auto overflow-y-auto max-h-[calc(100vh-380px)] bg-base-100 rounded-lg border border-base-300">
           <table className="table table-sm">
             <thead>
               <tr className="bg-base-200">

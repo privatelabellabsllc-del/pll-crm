@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { Plus, Search, Star, Mail, Phone, Building2, Users as UsersIcon } from 'lucide-react';
+import CsvImport from './CsvImport';
 import { Customer } from '../types';
 import { formatCurrency, priorityColor, timeAgo } from '../utils/helpers';
 
 interface CustomerListProps {
   onAddCustomer: () => void;
-  onViewCustomer: (customer: Customer) => void;
+  onSelectCustomer: (id: number) => void;
   onEditCustomer: (customer: Customer) => void;
 }
 
-export const CustomerList: React.FC<CustomerListProps> = ({ onAddCustomer, onViewCustomer, onEditCustomer }) => {
+export const CustomerList: React.FC<CustomerListProps> = ({ onAddCustomer, onSelectCustomer, onEditCustomer }) => {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState('');
   const [filterPriority, setFilterPriority] = useState<string>('all');
@@ -51,9 +52,12 @@ export const CustomerList: React.FC<CustomerListProps> = ({ onAddCustomer, onVie
           <h2 className="text-xl font-bold">Customers</h2>
           <p className="text-sm text-base-content/50">{customers.length} total contacts</p>
         </div>
-        <button className="btn btn-primary btn-sm" onClick={onAddCustomer}>
-          <Plus size={16} /> Add Customer
-        </button>
+        <div className="flex items-center gap-2">
+          <CsvImport type="customers" onImportComplete={loadCustomers} />
+          <button className="btn btn-primary btn-sm" onClick={onAddCustomer}>
+            <Plus size={16} /> Add Customer
+          </button>
+        </div>
       </div>
 
       {/* Filters */}
@@ -71,7 +75,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ onAddCustomer, onVie
       </div>
 
       {/* Customer Table */}
-      <div className="overflow-y-auto flex-1">
+      <div className="overflow-x-auto overflow-y-auto flex-1">
         {filtered.length === 0 ? (
           <div className="text-center py-12">
             <UsersIcon size={48} className="mx-auto opacity-20 mb-4" />
@@ -92,7 +96,7 @@ export const CustomerList: React.FC<CustomerListProps> = ({ onAddCustomer, onVie
             </thead>
             <tbody>
               {filtered.map((c) => (
-                <tr key={c.id} className="hover cursor-pointer" onClick={() => onViewCustomer(c)}>
+                <tr key={c.id} className="hover cursor-pointer" onClick={() => onSelectCustomer(c.id)}>
                   <td>
                     <div>
                       <p className="font-medium">{c.name}</p>

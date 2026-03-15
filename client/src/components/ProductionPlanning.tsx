@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { CalendarClock, AlertTriangle, CheckCircle2, Clock, Package, ShoppingCart, ChevronDown, ChevronUp } from 'lucide-react';
+import { CalendarClock, AlertTriangle, CheckCircle2, Clock, Package, ShoppingCart, ChevronDown, ChevronUp, Search } from 'lucide-react';
 import { formatCurrency } from '../utils/helpers';
 
 interface ProjectWithFormula {
@@ -46,6 +46,7 @@ export const ProductionPlanning: React.FC<Props> = ({ onNavigate }) => {
   const [projects, setProjects] = useState<ExpandedProject[]>([]);
   const [expandedId, setExpandedId] = useState<number | null>(null);
   const [filter, setFilter] = useState<'all' | 'ready' | 'partial' | 'waiting' | 'no_formula'>('all');
+  const [searchTerm, setSearchTerm] = useState('');
   const [loading, setLoading] = useState(true);
   const [paymentAlerts, setPaymentAlerts] = useState<ProjectWithFormula[]>([]);
 
@@ -116,7 +117,19 @@ export const ProductionPlanning: React.FC<Props> = ({ onNavigate }) => {
     }
   }
 
-  const filtered = projects.filter(p => filter === 'all' || p.readiness === filter);
+  const filtered = projects.filter(p => {
+    const matchesFilter = filter === 'all' || p.readiness === filter;
+    if (!matchesFilter) return false;
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      p.project.project_name.toLowerCase().includes(term) ||
+      (p.project.customer_name || '').toLowerCase().includes(term) ||
+      (p.project.production_stage || '').toLowerCase().includes(term) ||
+      (p.project.formula_name || '').toLowerCase().includes(term) ||
+      (p.project.assigned_to || '').toLowerCase().includes(term)
+    );
+  });
   const readyCt = projects.filter(p => p.readiness === 'ready').length;
   const partialCt = projects.filter(p => p.readiness === 'partial').length;
   const waitingCt = projects.filter(p => p.readiness === 'waiting').length;
@@ -150,6 +163,14 @@ export const ProductionPlanning: React.FC<Props> = ({ onNavigate }) => {
             </h2>
             <p className="text-sm opacity-60">Smart view of active projects, ingredient readiness, and alerts</p>
           </div>
+        </div>
+
+        {/* Search */}
+        <div className="mb-3">
+          <label className="input input-bordered input-sm flex items-center gap-2 max-w-md">
+            <Search size={14} className="opacity-50" />
+            <input type="search" className="grow" placeholder="Search plans..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+          </label>
         </div>
 
         {/* Stats */}

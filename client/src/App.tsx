@@ -23,6 +23,7 @@ import { ProductionPlanning } from './components/ProductionPlanning';
 import { ReportingDashboard } from './components/ReportingDashboard';
 import { ProfitAnalytics } from './components/ProfitAnalytics';
 import { ComplianceTraceability } from './components/ComplianceTraceability';
+import BackupRestore from './components/BackupRestore';
 
 const CRMApp: React.FC = () => {
   const { logout } = useAuth();
@@ -39,9 +40,22 @@ const CRMApp: React.FC = () => {
     customers: 0, salesProjects: 0, productionProjects: 0,
     inventoryItems: 0, lowStockItems: 0, suppliers: 0, openPOs: 0,
   });
+  const [selectedCustomerId, setSelectedCustomerId] = useState<number | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   const refresh = useCallback(() => setRefreshKey((k) => k + 1), []);
+
+  // Load customer data when selectedCustomerId changes
+  useEffect(() => {
+    if (selectedCustomerId) {
+      window.tasklet.sqlQuery(`SELECT * FROM customers WHERE id = ${selectedCustomerId}`)
+        .then((rows: any[]) => {
+          if (rows.length > 0) setSelectedCustomer(rows[0] as unknown as Customer);
+        })
+        .catch((err: any) => console.error('Failed to load customer:', err));
+    }
+  }, [selectedCustomerId, refreshKey]);
 
   useEffect(() => {
     loadCounts();
@@ -74,7 +88,10 @@ const CRMApp: React.FC = () => {
 
   function handleModalClose() {
     setModal('none');
-    setSelectedCustomer(null);
+    // Don't clear selectedCustomer if profile hub is open (selectedCustomerId is set)
+    if (!selectedCustomerId) {
+      setSelectedCustomer(null);
+    }
     setSelectedProject(null);
     setSelectedProduction(null);
     setSelectedInventory(null);
@@ -84,84 +101,104 @@ const CRMApp: React.FC = () => {
   }
 
   function handleSaved() {
+    // Keep selectedCustomerId so profile hub stays open after editing
+    const keepCustomerId = selectedCustomerId;
     handleModalClose();
+    if (keepCustomerId) {
+      setSelectedCustomerId(keepCustomerId);
+    }
     refresh();
   }
 
   return (
-    <div className="flex h-screen bg-base-100 overflow-hidden">
-      <Sidebar currentView={currentView} onNavigate={setCurrentView} counts={counts} />
+    <div className="flex h-screen overflow-hidden" style={{ background: '#f5f5f7' }}>
+      <Sidebar currentView={currentView} onNavigate={(view) => { setCurrentView(view); setSelectedCustomerId(null); setSelectedCustomer(null); }} counts={counts} isOpen={sidebarOpen} onToggle={() => setSidebarOpen(!sidebarOpen)} />
 
-      <div className="flex-1 overflow-hidden">
-        {currentView === 'dashboard' && (
-          <Dashboard key={refreshKey} onNavigate={setCurrentView} />
-        )}
-        {currentView === 'customers' && (
-          <CustomerList
-            key={refreshKey}
-            onAddCustomer={() => setModal('add_customer')}
-            onViewCustomer={(c) => { setSelectedCustomer(c); setModal('view_customer'); }}
-            onEditCustomer={(c) => { setSelectedCustomer(c); setModal('edit_customer'); }}
-          />
-        )}
-        {currentView === 'sales_pipeline' && (
-          <SalesPipeline
-            key={refreshKey}
-            onAddProject={() => setModal('add_project')}
-            onEditProject={(p) => { setSelectedProject(p); setModal('edit_project'); }}
-          />
-        )}
-        {currentView === 'production' && (
-          <ProductionPipeline
-            key={refreshKey}
-            onAddProduction={() => setModal('add_production')}
-            onEditProduction={(p) => { setSelectedProduction(p); setModal('edit_production'); }}
-          />
-        )}
-        {currentView === 'formulas' && (
-          <FormulaList
-            key={refreshKey}
-            onAddFormula={() => setModal('add_formula')}
-            onEditFormula={(f) => { setSelectedFormula(f); setModal('edit_formula'); }}
-          />
-        )}
-        {currentView === 'production_planning' && (
-          <ProductionPlanning
-            key={refreshKey}
-            onNavigate={(v) => setCurrentView(v as MainView)}
-          />
-        )}
-        {currentView === 'inventory' && (
-          <InventoryList
-            key={refreshKey}
-            onAddItem={() => setModal('add_inventory')}
-            onEditItem={(item) => { setSelectedInventory(item); setModal('edit_inventory'); }}
-          />
-        )}
-        {currentView === 'suppliers' && (
-          <SupplierList
-            key={refreshKey}
-            onAddSupplier={() => setModal('add_supplier')}
-            onEditSupplier={(s) => { setSelectedSupplier(s); setModal('edit_supplier'); }}
-            onViewSupplier={(s) => { setSelectedSupplier(s); setModal('view_supplier'); }}
-          />
-        )}
-        {currentView === 'purchase_orders' && (
-          <PurchaseOrderList
-            key={refreshKey}
-            onAddPO={() => setModal('add_po')}
-            onEditPO={(po) => { setSelectedPO(po); setModal('edit_po'); }}
-          />
-        )}
-        {currentView === 'reports' && (
-          <ReportingDashboard key={refreshKey} onNavigate={setCurrentView} />
-        )}
-        {currentView === 'profit_analytics' && (
-          <ProfitAnalytics key={refreshKey} />
-        )}
-        {currentView === 'compliance' && (
-          <ComplianceTraceability key={refreshKey} onRefresh={refresh} />
-        )}
+      <div className="flex-1 overflow-hidden pt-12 md:pt-0">
+        <div key={currentView + refreshKey} className="animate-in h-full">
+          {currentView === 'dashboard' && (
+            <Dashboard key={refreshKey} onNavigate={setCurrentView} />
+          )}
+          {currentView === 'customers' && !selectedCustomerId && (
+            <CustomerList
+              key={refreshKey}
+              onAddCustomer={() => setModal('add_customer')}
+              onSelectCustomer={(id) => setSelectedCustomerId(id)}
+              onEditCustomer={(c) => { setSelectedCustomer(c); setModal('edit_customer'); }}
+            />
+          )}
+          {currentView === 'customers' && selectedCustomerId && selectedCustomer && (
+            <CustomerDetail
+              key={selectedCustomerId}
+              customer={selectedCustomer}
+              onClose={() => { setSelectedCustomerId(null); setSelectedCustomer(null); }}
+              onEdit={() => setModal('edit_customer')}
+              onAddSalesDeal={() => setModal('add_project')}
+              onAddProduction={() => setModal('add_production')}
+            />
+          )}
+          {currentView === 'sales_pipeline' && (
+            <SalesPipeline
+              key={refreshKey}
+              onAddProject={() => setModal('add_project')}
+              onEditProject={(p) => { setSelectedProject(p); setModal('edit_project'); }}
+            />
+          )}
+          {currentView === 'production' && (
+            <ProductionPipeline
+              key={refreshKey}
+              onAddProduction={() => setModal('add_production')}
+              onEditProduction={(p) => { setSelectedProduction(p); setModal('edit_production'); }}
+            />
+          )}
+          {currentView === 'formulas' && (
+            <FormulaList
+              key={refreshKey}
+              onAddFormula={() => setModal('add_formula')}
+              onEditFormula={(f) => { setSelectedFormula(f); setModal('edit_formula'); }}
+            />
+          )}
+          {currentView === 'production_planning' && (
+            <ProductionPlanning
+              key={refreshKey}
+              onNavigate={(v) => setCurrentView(v as MainView)}
+            />
+          )}
+          {currentView === 'inventory' && (
+            <InventoryList
+              key={refreshKey}
+              onAddItem={() => setModal('add_inventory')}
+              onEditItem={(item) => { setSelectedInventory(item); setModal('edit_inventory'); }}
+            />
+          )}
+          {currentView === 'suppliers' && (
+            <SupplierList
+              key={refreshKey}
+              onAddSupplier={() => setModal('add_supplier')}
+              onEditSupplier={(s) => { setSelectedSupplier(s); setModal('edit_supplier'); }}
+              onViewSupplier={(s) => { setSelectedSupplier(s); setModal('view_supplier'); }}
+            />
+          )}
+          {currentView === 'purchase_orders' && (
+            <PurchaseOrderList
+              key={refreshKey}
+              onAddPO={() => setModal('add_po')}
+              onEditPO={(po) => { setSelectedPO(po); setModal('edit_po'); }}
+            />
+          )}
+          {currentView === 'reports' && (
+            <ReportingDashboard key={refreshKey} onNavigate={setCurrentView} />
+          )}
+          {currentView === 'profit_analytics' && (
+            <ProfitAnalytics key={refreshKey} />
+          )}
+          {currentView === 'compliance' && (
+            <ComplianceTraceability key={refreshKey} onRefresh={refresh} />
+          )}
+          {currentView === 'backup' && (
+            <BackupRestore />
+          )}
+        </div>
       </div>
 
       {/* Customer Modals */}
@@ -172,14 +209,7 @@ const CRMApp: React.FC = () => {
           onSaved={handleSaved}
         />
       )}
-      {modal === 'view_customer' && selectedCustomer && (
-        <CustomerDetail
-          customer={selectedCustomer}
-          onClose={handleModalClose}
-          onEdit={() => setModal('edit_customer')}
-          onAddProject={() => { setModal('add_project'); }}
-        />
-      )}
+      {/* CustomerDetail is now rendered inline as a full-page profile hub */}
 
       {/* Sales Project Modal */}
       {(modal === 'add_project' || modal === 'edit_project') && (
@@ -195,6 +225,7 @@ const CRMApp: React.FC = () => {
       {(modal === 'add_production' || modal === 'edit_production') && (
         <ProductionForm
           project={modal === 'edit_production' ? selectedProduction : null}
+          preselectedCustomerId={selectedCustomerId || undefined}
           onClose={handleModalClose}
           onSaved={handleSaved}
         />
@@ -252,8 +283,13 @@ function AuthGate() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-base-200">
-        <span className="loading loading-spinner loading-lg" />
+      <div className="min-h-screen flex items-center justify-center" style={{ background: '#f5f5f7' }}>
+        <div className="animate-in flex flex-col items-center gap-3">
+          <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-blue-500 to-blue-600 flex items-center justify-center shadow-lg">
+            <span className="text-white text-xl font-bold">P</span>
+          </div>
+          <span className="loading loading-spinner loading-md text-blue-500" />
+        </div>
       </div>
     );
   }

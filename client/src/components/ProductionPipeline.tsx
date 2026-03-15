@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, AlertTriangle, DollarSign, Clock, ChevronRight } from 'lucide-react';
+import { Plus, AlertTriangle, DollarSign, Clock, ChevronRight, Search } from 'lucide-react';
 import { ProductionProject, ProductionStage, PRODUCTION_STAGES } from '../types';
 import { formatCurrency, productionStageColor, productionProgress, timeAgo } from '../utils/helpers';
 
@@ -12,6 +12,8 @@ export const ProductionPipeline: React.FC<ProductionPipelineProps> = ({ onAddPro
   const [projects, setProjects] = useState<ProductionProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterStage, setFilterStage] = useState<string>('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [toast, setToast] = useState('');
 
   useEffect(() => {
     loadProjects();
@@ -30,6 +32,33 @@ export const ProductionPipeline: React.FC<ProductionPipelineProps> = ({ onAddPro
     }
   }
 
+  async function autoDeductInventory(projectId: number) {
+    try {
+      const project = await window.tasklet.sqlQuery(`SELECT formula_id FROM production_projects WHERE id=${projectId}`);
+      const formulaId = (project as any[])[0]?.formula_id;
+      if (!formulaId) return false;
+
+      const ingredients = await window.tasklet.sqlQuery(
+        `SELECT fi.inventory_id, fi.amount_grams FROM formula_ingredients fi WHERE fi.formula_id=${formulaId}`
+      );
+
+      let deducted = false;
+      for (const ing of ingredients as any[]) {
+        if (ing.inventory_id && ing.amount_grams) {
+          const amountKg = ing.amount_grams / 1000;
+          await window.tasklet.sqlExec(
+            `UPDATE inventory SET current_stock_kg = MAX(0, current_stock_kg - ${amountKg}), updated_at=datetime('now') WHERE id=${ing.inventory_id}`
+          );
+          deducted = true;
+        }
+      }
+      return deducted;
+    } catch (err) {
+      console.error('Failed to auto-deduct inventory:', err);
+      return false;
+    }
+  }
+
   async function advanceStage(proj: ProductionProject) {
     const idx = PRODUCTION_STAGES.indexOf(proj.production_stage);
     if (idx >= PRODUCTION_STAGES.length - 1) return;
@@ -39,6 +68,15 @@ export const ProductionPipeline: React.FC<ProductionPipelineProps> = ({ onAddPro
     setProjects((prev) => prev.map((p) => p.id === proj.id ? { ...p, production_stage: newStage, progress_percent: newProgress } : p));
     try {
       await window.tasklet.sqlExec(`UPDATE production_projects SET production_stage='${newStage}', progress_percent=${newProgress}, updated_at=datetime('now') WHERE id=${proj.id}`);
+
+      // Auto-deduct inventory when moving to Completed or Shipped
+      if (newStage === 'Completed' || newStage === 'Shipped') {
+        const deducted = await autoDeductInventory(proj.id);
+        if (deducted) {
+          setToast('📦 Inventory auto-deducted based on formula');
+          setTimeout(() => setToast(''), 3000);
+        }
+      }
     } catch (err) {
       console.error('Failed to advance stage:', err);
       loadProjects();
@@ -49,7 +87,18 @@ export const ProductionPipeline: React.FC<ProductionPipelineProps> = ({ onAddPro
     return <div className="flex items-center justify-center h-full"><span className="loading loading-spinner loading-lg text-primary" /></div>;
   }
 
-  const filtered = filterStage === 'all' ? projects : projects.filter((p) => p.production_stage === filterStage);
+  const searchFiltered = projects.filter((p) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      p.project_name.toLowerCase().includes(term) ||
+      (p.customer_name || '').toLowerCase().includes(term) ||
+      (p.company_name || '').toLowerCase().includes(term) ||
+      (p.production_stage || '').toLowerCase().includes(term) ||
+      (p.assigned_to || '').toLowerCase().includes(term)
+    );
+  });
+  const filtered = filterStage === 'all' ? searchFiltered : searchFiltered.filter((p) => p.production_stage === filterStage);
   const paymentAlerts = projects.filter((p) => p.payment_status !== 'Paid in Full' && ['Ready to Ship', 'Payment Pending', 'Shipped'].includes(p.production_stage));
 
   return (
@@ -71,6 +120,14 @@ export const ProductionPipeline: React.FC<ProductionPipelineProps> = ({ onAddPro
           <span className="text-sm">{paymentAlerts.length} project(s) have pending payments — shipment should not be approved until payment is received.</span>
         </div>
       )}
+
+      {/* Search */}
+      <div className="mb-4">
+        <label className="input input-bordered input-sm flex items-center gap-2 max-w-md">
+          <Search className="h-[1em] opacity-50" />
+          <input type="search" className="grow" placeholder="Search production jobs..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        </label>
+      </div>
 
       {/* Stage Filter */}
       <div className="flex gap-2 mb-4 overflow-x-auto pb-2">
@@ -129,6 +186,14 @@ export const ProductionPipeline: React.FC<ProductionPipelineProps> = ({ onAddPro
           ))
         )}
       </div>
+
+      {toast && (
+        <div className="toast toast-end toast-bottom z-50">
+          <div className="alert alert-info shadow-lg">
+            <span>{toast}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

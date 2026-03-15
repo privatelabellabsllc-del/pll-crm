@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Plus, ChevronRight, DollarSign, User, Calendar } from 'lucide-react';
+import { Plus, ChevronRight, DollarSign, User, Calendar, Search } from 'lucide-react';
 import { SalesProject, SalesStage, SALES_STAGES } from '../types';
 import { formatCurrency, salesStageColor, timeAgo } from '../utils/helpers';
 
@@ -12,6 +12,8 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ onAddProject, onEd
   const [projects, setProjects] = useState<SalesProject[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMode, setViewMode] = useState<'board' | 'list'>('board');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [toast, setToast] = useState('');
 
   useEffect(() => {
     loadProjects();
@@ -34,6 +36,22 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ onAddProject, onEd
     setProjects((prev) => prev.map((p) => p.id === projectId ? { ...p, sales_stage: newStage } : p));
     try {
       await window.tasklet.sqlExec(`UPDATE sales_projects SET sales_stage='${newStage}', updated_at=datetime('now') WHERE id=${projectId}`);
+
+      // Auto-create production plan when deal is Won
+      if (newStage === 'Won') {
+        const project = projects.find(p => p.id === projectId);
+        if (project) {
+          // Check if production plan doesn't already exist
+          const existing = await window.tasklet.sqlQuery(`SELECT id FROM production_projects WHERE sales_project_id=${projectId}`);
+          if ((existing as any[]).length === 0) {
+            await window.tasklet.sqlExec(
+              `INSERT INTO production_projects (sales_project_id, customer_id, project_name, production_stage, total_value, notes) VALUES (${projectId}, ${project.customer_id}, '${(project.project_name || '').replace(/'/g, "''")} - Production', 'Deposit Received', ${project.estimated_revenue || 0}, 'Auto-created from won deal: ${(project.project_name || '').replace(/'/g, "''")}')`
+            );
+            setToast('✅ Production plan auto-created!');
+            setTimeout(() => setToast(''), 3000);
+          }
+        }
+      }
     } catch (err) {
       console.error('Failed to update stage:', err);
       loadProjects();
@@ -44,7 +62,19 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ onAddProject, onEd
     return <div className="flex items-center justify-center h-full"><span className="loading loading-spinner loading-lg text-primary" /></div>;
   }
 
-  const stageValue = (stage: SalesStage) => projects.filter((p) => p.sales_stage === stage).reduce((sum, p) => sum + (p.estimated_revenue || 0), 0);
+  const filteredProjects = projects.filter((p) => {
+    if (!searchTerm) return true;
+    const term = searchTerm.toLowerCase();
+    return (
+      p.project_name.toLowerCase().includes(term) ||
+      (p.customer_name || '').toLowerCase().includes(term) ||
+      (p.company_name || '').toLowerCase().includes(term) ||
+      (p.sales_stage || '').toLowerCase().includes(term) ||
+      (p.product_type || '').toLowerCase().includes(term)
+    );
+  });
+
+  const stageValue = (stage: SalesStage) => filteredProjects.filter((p) => p.sales_stage === stage).reduce((sum, p) => sum + (p.estimated_revenue || 0), 0);
 
   return (
     <div className="p-6 h-full flex flex-col">
@@ -64,10 +94,18 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ onAddProject, onEd
         </div>
       </div>
 
+      {/* Search */}
+      <div className="mb-4">
+        <label className="input input-bordered input-sm flex items-center gap-2 max-w-md">
+          <Search className="h-[1em] opacity-50" />
+          <input type="search" className="grow" placeholder="Search deals..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+        </label>
+      </div>
+
       {viewMode === 'board' ? (
         <div className="flex gap-3 overflow-x-auto flex-1 pb-4">
           {SALES_STAGES.map((stage) => {
-            const stageProjects = projects.filter((p) => p.sales_stage === stage);
+            const stageProjects = filteredProjects.filter((p) => p.sales_stage === stage);
             return (
               <div key={stage} className="min-w-[220px] w-[220px] flex flex-col bg-base-200 rounded-lg">
                 <div className="p-3 border-b border-base-300">
@@ -111,7 +149,7 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ onAddProject, onEd
           })}
         </div>
       ) : (
-        <div className="overflow-y-auto flex-1">
+        <div className="overflow-x-auto overflow-y-auto flex-1">
           <table className="table table-sm">
             <thead>
               <tr>
@@ -125,7 +163,7 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ onAddProject, onEd
               </tr>
             </thead>
             <tbody>
-              {projects.map((p) => (
+              {filteredProjects.map((p) => (
                 <tr key={p.id} className="hover cursor-pointer" onClick={() => onEditProject(p)}>
                   <td className="font-medium">{p.project_name}</td>
                   <td className="text-sm">{p.company_name || p.customer_name}</td>
@@ -138,6 +176,14 @@ export const SalesPipeline: React.FC<SalesPipelineProps> = ({ onAddProject, onEd
               ))}
             </tbody>
           </table>
+        </div>
+      )}
+
+      {toast && (
+        <div className="toast toast-end toast-bottom z-50">
+          <div className="alert alert-success shadow-lg">
+            <span>{toast}</span>
+          </div>
         </div>
       )}
     </div>
